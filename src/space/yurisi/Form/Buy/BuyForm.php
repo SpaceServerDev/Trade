@@ -3,13 +3,15 @@ declare(strict_types=1);
 
 namespace space\yurisi\Form\Buy;
 
-use onebone\economyapi\EconomyAPI;
+use space\yurisi\SecureCoinAPI\History;
+use space\yurisi\SecureCoinAPI\SecureCoinAPI;
 use pocketmine\form\Form;
 use pocketmine\item\Item;
 use pocketmine\player\Player;
 use pocketmine\Server;
 use space\yurisi\Config\YamlConfig;
 use space\yurisi\Form\MainForm;
+use space\yurisi\Trade;
 
 class BuyForm implements Form {
   public function handleResponse(Player $player, $data): void {
@@ -196,11 +198,11 @@ class ResultSerachIDForm implements Form {
     }
     $cls = new YamlConfig();
     $market = $cls->getMarketData($this->id[$data]);
-    if ($market["price"] > EconomyAPI::getInstance()->myMoney($player->getName())) {
-      $player->sendForm(new self($this->button, $content = "§aお金が足りません"));
+    if (!SecureCoinAPI::getInstance()->isEnoughCoin($player->getName(),$market["price"])) {
+      $player->sendForm(new self($this->button, "§aお金が足りません"));
       return;
     }
-    $player->sendForm(new ConfirmSerachIDForm($this->id[$data], EconomyAPI::getInstance()->myMoney($player->getName())));
+    $player->sendForm(new ConfirmSerachIDForm($this->id[$data], SecureCoinAPI::getInstance()->getCoin($player->getName())));
 
   }
 
@@ -254,8 +256,8 @@ class ConfirmSerachIDForm implements Form {
         }
         $item = Item::nbtDeserialize(unserialize($this->data["nbt"]));
         if ($player->getInventory()->canAddItem($item)) {
-          EconomyAPI::getInstance()->reduceMoney($player->getName(), $this->data["price"]);
-          EconomyAPI::getInstance()->addMoney($this->data["player"], $this->data["price"]);
+          SecureCoinAPI::getInstance()->takeCoin(new History($player->getName(), $this->data["player"], $this->data["price"], Trade::getInstance()->getName(), $this->data["player"]."の".$item->getName()."を購入しました。"));
+          SecureCoinAPI::getInstance()->addCoin(new History($this->data["player"], $player->getName(),$this->data["price"], Trade::getInstance()->getName(), $player->getName()."に".$item->getName()."を購入されました。"));
           $player->getInventory()->addItem($item);
           $cls = new YamlConfig();
           $cls->removeItem($this->data["id"]);
